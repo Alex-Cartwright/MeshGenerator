@@ -9,15 +9,17 @@ public:
 
 	float** GenerateCartesianGrid();
 	vector<vector<float>> FindPointsNearSurface(float withinDistance);
+
 	vector<vector<float>> FindPointsInsideSurface();
+	
 	float** cartesianArray;
 
 	vector<vector<float>> listOfLines, surfaceIntersectNodes;
 	vector<float> LineDeletion();
+	vector<vector<float>> CalculateSpringForces(vector<vector<float>> listOfSprings);
 private:
 	int xn, yn, nvert, nodesInsideSurfaceN, nodesNearSurfaceN;
-	float xdist, ydist;
-
+	float xdist, ydist, xspacing, yspacing;
 
 	vector<vector<float>> vertxy;
 	vector<vector<float>> nodesInsideSurface, nodesNearSurface;
@@ -31,3 +33,8 @@ private:
 		float p2_x, float p2_y, float p3_x, float p3_y, float* i_x, float* i_y);
 };
 
+struct Node
+{
+	int cartesianGridID, nodeID;
+	float xInitial, yInitial, xCurrent, yCurrent;
+};

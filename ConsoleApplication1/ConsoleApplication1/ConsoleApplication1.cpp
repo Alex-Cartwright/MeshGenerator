@@ -20,7 +20,7 @@ int main()
 
 	rapidcsv::Document doc("polylines.csv");
 	std::vector<float> surfaceMesh = doc.GetColumn<float>("x");
-	std::cout << "Read " << surfaceMesh.size() << " values." << std::endl;
+	//std::cout << "Read " << surfaceMesh.size() << " values." << std::endl;
 
 	std::vector<vector<float>> surfaceCoords;
 	for (size_t i = 0; i < surfaceMesh.size(); i++)
@@ -52,7 +52,7 @@ int main()
 	myFile.open("listOfCartesianLines.txt");
 	for (int i = 0; i < cartesianGrid.listOfLines.size(); i++)
 	{
-		for (int j = 0; j < 5; j++)
+		for (int j = 0; j < 6; j++)
 		{
 			myFile << cartesianGrid.listOfLines[i][j] << ",";
 		}
@@ -83,8 +83,17 @@ int main()
 	}
 	myFile.close();
 
-	
-
+	vector<vector<float>> springsOut = cartesianGrid.CalculateSpringForces(cartesianGrid.listOfLines);
+	myFile.open("springs.txt");
+	for (int i = 0; i < springsOut.size(); i++)
+	{
+		for (int j = 0; j < 5; j++)
+		{
+			myFile << springsOut[i][j] << ",";
+		}
+		myFile << "\n";
+	}
+	myFile.close();
 	//bool insideShape;
 	//vector<vector<float>> insideShapeCartesianGridCoords;
 	//int insideShapeN = 0;

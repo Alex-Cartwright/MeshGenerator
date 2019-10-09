@@ -29,7 +29,7 @@ float** Cartesian::GenerateCartesianGrid()
 	//xn, yn > 2
 
 	//Create empty (xn*yn) x 2 array full of zeroes
-	float** cartesianArray = 0;
+	cartesianArray = 0;
 	cartesianArray = new float* [xn * yn];
 
 	//n = number of dimensions
@@ -43,7 +43,6 @@ float** Cartesian::GenerateCartesianGrid()
 	}
 
 	//Calculate coordinate spacing
-	float xspacing, yspacing;
 
 	xspacing = xdist / (xn - 1);
 	yspacing = ydist / (yn - 1);
@@ -84,10 +83,9 @@ vector<vector<float>> Cartesian::FindPointsNearSurface(float withinDistance)
 }
 
 
-
 vector<vector<float>> Cartesian::FindPointsInsideSurface()
 {
-	//Find nodes inside the surface
+	//Find nodes inside the surface and return a vector of all the points and their coordinates
 	for (int i = 0; i < xn * yn; i++)
 	{
 		bool insideShape;
@@ -115,6 +113,111 @@ vector<float> Cartesian::LineDeletion()
 		// check whether surface concave/convex?
 	}
 	return vector<float>();
+}
+
+
+
+vector<vector<float>> Cartesian::CalculateSpringForces(vector<vector<float>> listOfSprings)
+{
+	//F = kx
+//listOfSprings should be node1ID, node2ID, x1, y1, x2, y2
+
+	vector<vector<float>> displacements;
+	for (int i = 0; i < listOfSprings.size(); i++)
+	{
+		//Calculate displacements
+		vector<float> displacementRow;
+		displacementRow.push_back(listOfSprings[i][0]);
+		displacementRow.push_back(listOfSprings[i][1]);
+		displacementRow.push_back(abs(listOfSprings[i][4] - listOfSprings[i][2]) - listOfSprings[i][6]);
+		displacementRow.push_back(abs(listOfSprings[i][5] - listOfSprings[i][3]) - listOfSprings[i][7]);
+		displacements.push_back(displacementRow);
+	}
+	
+	//delete duplicates
+	int deleteCount = 0;
+	for (int i = 0; i < displacements.size() - deleteCount; i++)
+	{
+		for (int j = 0; j < displacements.size() - deleteCount; j++)
+		{
+			if (displacements[i][0] == displacements[j][1] && displacements[i][1] == displacements[j][0])
+			{
+				//duplicate found
+				displacements.erase(displacements.begin() + j);
+				deleteCount++;
+				break;
+			}
+		}
+
+	}
+
+
+
+	//input stiffnesses and calculate force
+	vector<vector<float>> totalNodeDisplacements;
+	
+	for (int i = 0; i < nodesInsideSurface.size(); i++)
+	{
+		vector<float> totalDispRow;
+		float xdisp = 0, ydisp = 0;
+		for (int j = 0; j < displacements.size(); j++)
+		{
+			if (nodesInsideSurface[i][0] == displacements[j][0])
+			{
+				if (nodesInsideSurface[i][1] > cartesianArray[(int)displacements[j][1]][1])
+				{
+					xdisp += 0.3 * (displacements[j][2]);
+				}
+				else
+				{
+					xdisp -= 0.3 * (displacements[j][2]);
+				}
+
+				if (nodesInsideSurface[i][2] > cartesianArray[(int)displacements[j][1]][2])
+				{
+					ydisp += 0.3 * (displacements[j][3]);
+				}
+				else
+				{
+					ydisp -= 0.3 * (displacements[j][3]);
+				}
+
+				
+			}
+
+			if (nodesInsideSurface[i][0] == displacements[j][1])
+			{
+				if (nodesInsideSurface[i][1] > cartesianArray[(int)displacements[j][0]][1])
+				{
+					xdisp -= 0.1 * (displacements[j][2]);
+				}
+				else
+				{
+					xdisp += 0.1 * (displacements[j][2]);
+				}
+
+				if (nodesInsideSurface[i][2] > cartesianArray[(int)displacements[j][0]][2])
+				{
+					ydisp -= 0.1 * (displacements[j][3]);
+				}
+				else
+				{
+					ydisp += 0.1 * (displacements[j][3]);
+				}
+
+
+			}
+		}
+		totalDispRow.push_back(nodesInsideSurface[i][0]);
+		totalDispRow.push_back(nodesInsideSurface[i][1]);
+		totalDispRow.push_back(nodesInsideSurface[i][2]);
+		totalDispRow.push_back(xdisp);
+		totalDispRow.push_back(ydisp);
+		totalNodeDisplacements.push_back(totalDispRow);
+	}
+	//loop over each node, calculate force from each spring, then displace it
+
+	return totalNodeDisplacements;
 }
 
 
@@ -159,6 +262,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -175,6 +280,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -196,6 +303,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -212,6 +321,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -237,6 +348,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -253,6 +366,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -274,6 +389,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -290,6 +407,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -315,6 +434,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -331,6 +452,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -352,6 +475,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -368,6 +493,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -389,6 +516,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -405,6 +534,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -434,6 +565,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -450,8 +583,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -470,6 +606,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -486,6 +624,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -511,6 +651,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -527,8 +669,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -547,6 +692,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -563,6 +710,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -589,6 +738,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -605,8 +756,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -625,6 +779,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -641,6 +797,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -662,6 +820,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -678,6 +838,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -708,6 +870,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -724,8 +888,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -744,6 +911,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -760,6 +929,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -781,6 +952,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -797,6 +970,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -822,6 +997,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -838,8 +1015,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -847,6 +1027,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							surfaceIntersectNodes.push_back(lineRow);
 							lineRow.clear();
 						}
+
 
 						//Below Node
 						lineRow.push_back(j + i * yn);
@@ -858,6 +1039,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -874,6 +1057,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -885,6 +1070,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.clear();
 						}
 
+
 						//Right Node
 						lineRow.push_back(j + i * yn);
 						lineRow.push_back(j + (i + 1) * yn);
@@ -895,6 +1081,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -911,6 +1099,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -921,6 +1111,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							surfaceIntersectNodes.push_back(lineRow);
 							lineRow.clear();
 						}
+
 					}
 					else
 					{
@@ -936,6 +1127,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][0]); // x coord of x - 1 point
 							lineRow.push_back(cartesianArray[j + (i - 1) * yn][1]); // y coord of x - 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -952,8 +1145,11 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
+							testLine.clear();
 
 							//update intersect Nodes
 							lineRow.push_back(temp[0]);
@@ -961,6 +1157,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							surfaceIntersectNodes.push_back(lineRow);
 							lineRow.clear();
 						}
+						
 
 						//Below Node
 						lineRow.push_back(j + i * yn);
@@ -972,6 +1169,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][0]); // x coord of y - 1 point
 							lineRow.push_back(cartesianArray[(j - 1) + i * yn][1]); // y coord of y - 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -988,6 +1187,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -999,6 +1200,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.clear();
 						}
 
+
 						//Above Node
 						lineRow.push_back(j + i * yn);
 						lineRow.push_back((j + 1) + i * yn);
@@ -1009,6 +1211,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][0]); // x coord of y + 1 point
 							lineRow.push_back(cartesianArray[(j + 1) + i * yn][1]); // y coord of y + 1 point
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -1025,6 +1229,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(0);
+							lineRow.push_back(yspacing);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -1036,6 +1242,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.clear();
 						}
 
+
 						//Right Node
 						lineRow.push_back(j + i * yn);
 						lineRow.push_back(j + (i + 1) * yn);
@@ -1046,6 +1253,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							lineRow.push_back(cartesianArray[j + i * yn][1]); //y value
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][0]); // x coord of x + 1 point
 							lineRow.push_back(cartesianArray[j + (i + 1) * yn][1]); // y coord of x + 1 point
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 						}
@@ -1062,6 +1271,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							temp = LineTruncation(nvert, vertxy, testLine);
 							lineRow.push_back(temp[0]);
 							lineRow.push_back(temp[1]);
+							lineRow.push_back(xspacing);
+							lineRow.push_back(0);
 							listOfLines.push_back(lineRow);
 							lineRow.clear();
 							testLine.clear();
@@ -1072,6 +1283,7 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 							surfaceIntersectNodes.push_back(lineRow);
 							lineRow.clear();
 						}
+
 					}
 				}
 			}
@@ -1084,6 +1296,8 @@ vector<vector<float>> Cartesian::GenerateListOfLines()
 
 vector<float> Cartesian::LineTruncation(int nvert, vector<vector<float>> vertxy, vector<float> testLine)
 {
+	//Takes a test line and checks it against every line in the nvert-polygon vertxy and sees which it intersects
+	//need to see what happens if it intersects multiple lines - just choose closest one? 
 	float* x_intersect, * y_intersect;
 	float xint = 10, yint = 10;
 	x_intersect = &xint;
